@@ -1,0 +1,14 @@
+sim:
+  gui: true 
+  timestep: 0.02 
+  gravity: -9.81 
+
+world:
+  obstacles: 
+    - {pos: [1.0, 0.3, 0.05], size: [0.3, 0.3, 0.1]}
+    - {pos: [1.5, -0.4, 0.05], size: [0.4, 0.2, 0.1]}
+  
+  target: 
+    pos: [2.2, 0.0, 0.02]
+  object: 
+    pos: [0.8, -0.8, 0.03]

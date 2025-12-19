@@ -1,0 +1,4 @@
+control: 
+  hz: 20
+  max_steps_per_episode: 2000
+  
