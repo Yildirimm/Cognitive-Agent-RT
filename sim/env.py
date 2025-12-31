@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Dict, Any, Optional, Tuple
 import time 
@@ -8,7 +7,8 @@ import pybullet as p
 import pybullet_data
 import yaml 
 
-@dataclass # TODO: learn this 
+
+@dataclass
 class Action:
     throttle: float # [-1,1]
     steer: float # [-1,1]
@@ -16,7 +16,6 @@ class Action:
 
 class BulletEnv: 
     """
-    Day-1 env:
       - plane + obstacles + target marker + object marker
       - reset() stable
       - step(action) advances sim and returns observation dict
@@ -28,7 +27,7 @@ class BulletEnv:
         self.timing_cfg = self._load_yaml(timing_cfg_path)
 
         self.gui = bool(self.task_cfg["sim"].get("gui", True))
-        self.dt = float(self.task_cfg["sim"].get("timestep", 0.02)) # TODO we had defined earlier? 
+        self.dt = float(self.task_cfg["sim"].get("timestep", 0.02))
         self.gravity = float(self.task_cfg["sim"].get("gravity",-9.81))
 
         self.control_hz = float(self.timing_cfg["control"].get("hz", 20))
@@ -43,10 +42,13 @@ class BulletEnv:
         self._was_in_collision = False
 
         # Racecar control joints in pybullet example model
-        # TODO: why did we decide them like this ?? 
         self.steering_joints = [0, 2] # front wheels steering 
-        self.drive_joints = [8, 15] # rear wheels motor joints (common in this model)
+        self.drive_joints = [8, 15] # rear wheels motor joints
 
+        print("[CFG] task_cfg_path =", task_cfg_path)
+        print("[CFG] target pos =", self.task_cfg["world"]["target"]["pos"])
+        print("[CFG] object pos =", self.task_cfg["world"]["object"]["pos"])
+        print("[CFG] obstacles =", self.task_cfg["world"].get("obstacles", []))
 
     def connect(self):
         if self.cid is not None:
@@ -82,22 +84,22 @@ class BulletEnv:
         p.setTimeStep(self.dt)
 
         self.step_count = 0 
+        self._was_in_collision = False # since reset
         self.obstacle_ids = [] 
 
         # floor 
         p.loadURDF("plane.urdf")
 
-       # robot 
+        # robot 
         self.robot_id = p.loadURDF(
             "racecar/racecar.urdf",
-            basePosition=[0,0,0.15],  # slightly higher spawn helps too
+            basePosition=[0,0,0.30],  # slightly higher spawn helps too
             baseOrientation=p.getQuaternionFromEuler([0,0,0]),
         )
 
         self._setup_racecar_joints()
 
         # SET DAMPING & FRICTION
-
         num_joints = p.getNumJoints(self.robot_id)
 
         # 1. base link
@@ -119,6 +121,7 @@ class BulletEnv:
                 linearDamping=0.04,
             )
 
+
         # obstacles 
         for ob in self.task_cfg["world"].get("obstacles", []):
             self.obstacle_ids.append(self._spawn_box(
@@ -132,6 +135,13 @@ class BulletEnv:
         # object marker (visual, optional for later)
         obj_pos = self.task_cfg["world"]["object"]["pos"]
         self.object_id = self._spawn_marker(obj_pos, radius=0.06, rgba=[0.2, 0.2, 0.9, 1])
+
+
+        target_pos, _ = p.getBasePositionAndOrientation(self.target_id)
+        print("[RESET-INFO] target world pos from bullet:", target_pos)
+        robot_pos, _ = p.getBasePositionAndOrientation(self.robot_id)
+        print("[RESET-INFO] robot world pos from bullet:", robot_pos)
+
 
         # settle a few frames to make reset reliable
         for _ in range(10):
@@ -151,7 +161,7 @@ class BulletEnv:
             name = info[1].decode("utf-8")
             name_by_idx[j] = name
 
-        # Print once to learn what your URDF actually has
+        # Print once to learn what URDF has already
         print("\n[Racecar joints]")
         for j, name in name_by_idx.items():
             print(f"  {j:2d}: {name}")
@@ -169,6 +179,7 @@ class BulletEnv:
             if "wheel" in lname:
                 drive.append(j)
 
+
         # Fallback if no names match (keeps you moving)
         if len(steering) == 0:
             steering = [0, 2] if n > 2 else list(range(min(2, n)))
@@ -177,7 +188,7 @@ class BulletEnv:
             drive = list(range(max(0, n - 4), n))
 
         self.steering_joints = steering[:2]  # usually 2 steering joints
-        self.drive_joints = drive[:2]        # keep 2 for now, we can expand later
+        self.drive_joints = drive[:2]
 
         print(f"[Selected] steering_joints={self.steering_joints}, drive_joints={self.drive_joints}\n")
 
@@ -198,6 +209,7 @@ class BulletEnv:
 
         self._apply_car_control(throttle=throttle, steer=steer)
         
+        
         # step sim at env timestep
         p.stepSimulation()
         if self.gui:
@@ -210,9 +222,11 @@ class BulletEnv:
         done = self.step_count >= self.max_steps
         
         info = {
-            "step":self.step_count,
-            "collision":self._check_collision_event(),
+            "step": self.step_count,
+            "collision": self._check_collision_event(),  # rising edge
+            "contact": self._in_contact(),               # continuous
         }
+
 
         return obs, reward, done, info
     
@@ -283,12 +297,15 @@ class BulletEnv:
         collision_event = in_contact and not self._was_in_collision
         self._was_in_collision = in_contact
         return collision_event
-        """if self.robot_id is None:
+
+
+    def _in_contact(self) -> bool:
+        if self.robot_id is None:
             return False
         for oid in self.obstacle_ids:
             if len(p.getContactPoints(self.robot_id, oid)) > 0:
                 return True
-        return False"""
+        return False
 
     
     def _spawn_box(self, pos, size, rgba): 
