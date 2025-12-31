@@ -1,3 +1,6 @@
 TODO.txt
 .vscode/
 project_timeline.txt
+/agent/__pycache__
+/sim/__pycache__
+/skills/__pycache__
