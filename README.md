@@ -38,9 +38,18 @@ From the project root:
 python3 -m agent.loop
 ```
 
-### Day 3 — Agent Loop + Logging + Baseline
-observe (state_extractor)
-→ choose_action (baseline policy)
-→ act (primitive)
-→ log (JSONL)
-→ repeat until done
+## Day 3 — Closed-Loop Cognitive Agent (Baseline)
+
+Implemented a fully closed perception–action loop in PyBullet.
+
+**Features**
+- Symbolic state extraction (pose, bearing, distances)
+- Rule-based navigation baseline
+- Obstacle avoidance via ray perception
+- Contact-based collision detection
+- Stuck detection and recovery behaviors
+- Deterministic episode termination with target latch
+
+This baseline serves as a stable foundation for:
+- LLM-based planning (Day 4)
+- Real-time constrained control (Phase B)
