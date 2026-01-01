@@ -37,3 +37,10 @@ From the project root:
 ```bash
 python3 -m agent.loop
 ```
+
+### Day 3 — Agent Loop + Logging + Baseline
+observe (state_extractor)
+→ choose_action (baseline policy)
+→ act (primitive)
+→ log (JSONL)
+→ repeat until done

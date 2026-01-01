@@ -50,6 +50,7 @@ class BulletEnv:
         print("[CFG] object pos =", self.task_cfg["world"]["object"]["pos"])
         print("[CFG] obstacles =", self.task_cfg["world"].get("obstacles", []))
 
+
     def connect(self):
         if self.cid is not None:
             return
@@ -60,15 +61,18 @@ class BulletEnv:
 
         if self.gui:
             p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
-            p.resetDebugVisualizerCamera(cameraDistance=3.0, 
-                                         cameraYaw=45, 
-                                         cameraPitch=-35, 
-                                         cameraTargetPosition=[0.5, 0, 0]
-                                         )
-    
+            p.resetDebugVisualizerCamera(
+                cameraDistance=3.0,
+                cameraYaw=45, 
+                cameraPitch=-35, 
+                cameraTargetPosition=[0.5, 0, 0]
+                )
+
+
     def close(self):
         if self.cid is not None:
             p.disconnect(self.cid)
+            
         self.cid = None
 
 
@@ -217,15 +221,43 @@ class BulletEnv:
 
         obs = self._get_obs()
 
-        # day-1: no-reward logic yet
         reward = 0.0 
         done = self.step_count >= self.max_steps
         
+        # contact detection (perception) via PyBullet
+        cps = p.getContactPoints(bodyA=self.robot_id)
+
+        contact = len(cps) > 0
+        contact_with_obstacle = False
+        contact_normal_xy = np.zeros(2, dtype=float)
+
+        obstacle_ids = set(self.obstacle_ids)
+
+        for cp in cps: 
+            bodyB = cp[2] # bodyUniqueIdB
+            if bodyB in obstacle_ids: 
+                contact_with_obstacle = True
+
+                # cp[7] = contact normal on body B, world frame (x,y,z)
+                nx, ny, _ = cp[7]
+                contact_normal_xy += np.array([nx,ny], dtype=float)
+
+        if np.linalg.norm(contact_normal_xy) > 1e-6: 
+            contact_normal_xy = (
+                contact_normal_xy / np.linalg.norm(contact_normal_xy)
+            ).tolist()
+
+        else:
+            contact_normal_xy = [0.0, 0.0]
+
+
         info = {
             "step": self.step_count,
             "collision": self._check_collision_event(),  # rising edge
-            "contact": self._in_contact(),               # continuous
-        }
+            "contact": contact,                          # continuous
+            "contact_with_obstacle": contact_with_obstacle,
+            "contact_normal_xy": contact_normal_xy,
+            }
 
 
         return obs, reward, done, info
