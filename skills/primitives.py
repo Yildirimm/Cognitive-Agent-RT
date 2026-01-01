@@ -28,34 +28,24 @@ def forward_steer(throttle: float, steer: float) -> Action:
         steer=float(np.clip(steer, -1.0, 1.0))
     )
 
-def approach_target(
-        state: Dict[str, Any],
-        *,
-        d_safe: float = 0.50,
-        bearing_thresh: float = 0.25
-        ) -> Action:
 
-    """
-    Macro: reach target using only symbolic state + primitives
-    This is Day-2 scripted controller, no LLM involved
-    """
-
-    if state["at_target"]:
+def approach_target(state):
+    # hard stop zone
+    if state["target_dist"] < 0.10:
         return stop()
-    
-    # Safety first
-    if state["nearest_obstacle_dist"] < d_safe:
-        # turn away from the closer side
-        if state["left_dist"] < state["right_dist"]:
-            return turn_right()
-        else:
-            return turn_left()
-        
 
-    # Smooth steering toward target
+    # proportional steering
     b = state["target_bearing"]
-    # proportional steering toward target
-    steer_gain = 2.0        # tuning knob
-    steer_cmd = steer_gain * b
+    steer = np.clip(1.5 * b, -1.0, 1.0)
 
-    return forward_steer(throttle=0.6, steer=steer_cmd)
+    # distance-based throttle
+    d = state["target_dist"]
+
+    if d > 1.0:
+        throttle = 0.6
+    elif d > 0.4:
+        throttle = 0.3
+    else:
+        throttle = 0.15
+
+    return forward_steer(throttle=throttle, steer=steer)

@@ -94,7 +94,6 @@ def extract_symbolic(
     o_pos = obs["object"]["pos"] # shape (3,) 
 
     yaw = _yaw_from_xyzw(q)
-    # print("[EXTRACT DEBUG] r_pos:", r_pos, "t_pos:", t_pos, "t_pos-r_pos:", (t_pos - r_pos))
 
 
     # 2D relative vectors on ground plane
@@ -110,7 +109,7 @@ def extract_symbolic(
     target_angle = math.atan2(dy_t, dx_t)
     target_bearing = _wrap_pi(target_angle - yaw)
 
-
+    
     # obstacle distances via rays (front arc)
     angles = [-60.0, -30.0, 0.0, 30.0, 60.0]
 

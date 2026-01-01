@@ -1,51 +1,133 @@
-from sim.env import BulletEnv, Action
 from sim.state_extractor import extract_symbolic
-from skills.primitives import approach_target
+from collections import deque
 import numpy as np
+from skills.primitives import stop
 
-def main():
-    env = BulletEnv("configs/task.yaml", "configs/timing.yaml")
-    obs = env.reset()
 
-    for i in range(env.max_steps):
-        s = extract_symbolic( 
-            obs, 
-            obstacle_ids=env.obstacle_ids,
-            robot_id=env.robot_id
-        )
-        
-        if i == 0:
-            print("[DEBUG] symbolic keys:", s.keys())
-            print("[DEBUG] symbolic state:", s)
-            print("[DEBUG] raw robot pos:", obs["robot"]["pos"])
-            print("[DEBUG] raw target pos:", obs["target"]["pos"])
+class AgentLoop:
+    """
+    Day3: Observe -> Policy -> Act -> Log
+    No YAML, no printing, no “policy logic” inside.
+    """
 
-        action = approach_target(s)
-        obs, _, done, info = env.step(action)
+    def __init__(self, env, policy, logger):
+        self.env = env 
+        self.policy = policy
+        self.logger = logger
+        self.pos_history = deque(maxlen=25)
+        self.stuck_steps = 0
+        self.reached_target = False
 
-        
 
-        speed = float(np.linalg.norm(obs["robot"]["lin_vel"][:2]))
+    def run_episode(self, episode_id: int):
+        obs = self.env.reset()
 
-        if i % 25 == 0:
-            print(
-                f"step={i:4d} "
-                f"dist={s['target_dist']:.2f} "
-                f"bear={s['target_bearing']:+.2f} "
-                f"near_ob={s['nearest_obstacle_dist']:.2f} "
-                f"speed={speed:.2f} "
-                f"collision={info.get('collision')}"
+        # reset episode-level memory
+        self.pos_history.clear()
+        self.stuck_steps = 0
+        self.pos_history.clear()
+        self.stuck_steps = 0
+        self.reached_target = False
+
+        collisions = 0
+        last_info = {}
+        reason = "max_steps"
+        success = False
+
+        for step in range(self.env.max_steps):
+
+            # perception
+            state = extract_symbolic(
+                obs,
+                obstacle_ids=self.env.obstacle_ids,
+                robot_id=self.env.robot_id,
             )
 
+            # inject physics-level perception from env
+            state["contact"] = bool(last_info.get("contact", False))
+            state["contact_with_obstacle"] = bool(
+                last_info.get("contact_with_obstacle", False)
+            )
+            state["contact_normal_xy"] = last_info.get(
+                "contact_normal_xy", [0.0, 0.0]
+            )
 
-        if s["at_target"]:
-            print("Reached target")
-            break
-        if done:
-            print("Max steps reached.")
-            break
+            # executive: stuck detection
+            pos = np.array(obs["robot"]["pos"][:2])
+            self.pos_history.append(pos)
 
-    env.close()
+            is_stuck = False
+            if len(self.pos_history) == self.pos_history.maxlen:
+                disp = np.linalg.norm(self.pos_history[-1] - self.pos_history[0])
 
-if __name__ == "__main__":
-    main()
+                if disp < 0.03:      # ~3 cm
+                    self.stuck_steps += 1
+                else:
+                    self.stuck_steps = 0
+
+                if self.stuck_steps > 10:
+                    is_stuck = True
+
+            state["stuck"] = is_stuck
+            
+            # terminal latch
+            if state["target_dist"] < 0.10:
+                self.reached_target = True
+
+            # policy / terminal override
+            if self.reached_target:
+                print("\nTarget Reached!")
+                action = stop()
+            else:
+                action = self.policy.select_action(state)
+
+
+            # act 
+            obs, reward, done, info = self.env.step(action)
+            last_info = info
+
+            # success condition 
+            if self.reached_target:
+                success = True
+                reason = "at_target"
+                done = True
+
+
+            # logging
+            self.logger.log_step(
+                episode_id=episode_id,
+                step=step,
+                state=state,
+                action=action,
+                reward=float(reward) if reward is not None else 0.0,
+                done=bool(done),
+                info=info,
+            )
+
+            if step % 200 == 0:
+                print(
+                    f"[DBG] step={step} "
+                    f"dist={state['target_dist']:.3f} "
+                    f"bearing={state['target_bearing']:+.2f} "
+                    f"stuck={state['stuck']} "
+                    f"at_target={state['at_target']}"
+                )
+
+            if done:
+                break
+
+        self.logger.log_episode_end(
+            episode_id=episode_id,
+            success=success,
+            steps=step + 1,
+            collisions=collisions,
+            reason=reason,
+            info_last=last_info,
+        )
+
+        return {
+            "success": success,
+            "steps": step + 1,
+            "collisions": collisions,
+            "reason": reason,
+        }

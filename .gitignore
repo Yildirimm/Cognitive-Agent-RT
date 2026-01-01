@@ -4,3 +4,5 @@ project_timeline.txt
 /agent/__pycache__
 /sim/__pycache__
 /skills/__pycache__
+/eval/__pycache__
+/planner/__pycache__
