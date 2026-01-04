@@ -38,7 +38,7 @@ From the project root:
 python3 -m agent.loop
 ```
 
-## Day 3 — Closed-Loop Cognitive Agent (Baseline)
+###  Day 3 — Closed-Loop Cognitive Agent (Baseline)
 
 Implemented a fully closed perception–action loop in PyBullet.
 
@@ -53,3 +53,116 @@ Implemented a fully closed perception–action loop in PyBullet.
 This baseline serves as a stable foundation for:
 - LLM-based planning (Day 4)
 - Real-time constrained control (Phase B)
+```
+bash
+python -m eval.run_eval
+
+```
+
+### Day 4 — Closed-Loop Cognitive Agent (LLM-Augmented)
+
+#### Goal:
+Extend the baseline agent with a symbolic LLM planner, while preserving safety, determinism, and real-time constraints.
+
+The LLM does not control the robot directly.
+It proposes high-level symbolic actions that are gated and overridden when necessary.
+
+#### Architecture Overview
+```
+Observe
+  ↓
+Symbolic State
+  ↓
+LLM Planner (optional, ~4 Hz)
+  ↓
+Action Gate (safety + recovery)
+  ↓
+Fallback Controller (~20 Hz)
+  ↓
+Act
+  ↓
+Log
+```
+
+#### Core Features
+##### Symbolic Perception
+
+- Target distance & bearing
+
+- Ray-based obstacle distances (front / left / right)
+
+- Contact and collision detection
+
+- Motion-based stuck detection
+
+- Terminal target latch
+
+##### Hybrid Decision Making
+
+- Rule-based fallback controller executes every step
+- LLM planner proposes actions intermittently
+- LLM outputs are:
+    - JSON-only
+    - schema-constrained
+    - symbolically grounded
+    - ignored during recovery
+
+##### Real-Time Awareness
+- Cognition (LLM): ~4 Hz (step-based throttling)
+- Control (physics): ~20 Hz
+- No blocking calls in the control loop
+- Safe degradation when LLM is slow or unavailable
+
+##### Robustness Mechanisms
+- Collision-triggered recovery
+- Directional recovery using contact normals
+- Motion-based stuck detection
+- Deterministic episode termination
+
+##### Structured LLM Interface
+- Symbolic action space:
+    - forward
+    - turn_left
+    - turn_right
+    - stop
+- Strict JSON schema enforcement
+- Deterministic decoding (temperature = 0)
+- Automatic fallback on malformed or missing output
+
+##### Logging & Evaluation
+- Per-step logging:
+    - symbolic state
+    - executed action
+    - LLM action (if any)
+    - fallback usage
+
+- Episode-level summaries:
+    - success
+    - steps
+    - collisions
+    - termination reason
+
+#### Running the Day 4 Evaluation
+```
+python -m eval.run_eval
+```
+
+##### Configuration
+LLM usage is controlled via configs/task.yaml:
+
+```
+use_llm: true   # or false for pure baseline
+```
+
+API keys are loaded via ```.env``` (not committed):
+```
+GEMINI_API_KEY=your_key_here
+```
+
+##### Design Notes
+* The LLM never bypasses safety or recovery logic
+* The agent remains functional when:
+    - LLM output is invalid
+    - LLM is slow
+    - LLM is disabled
+* This architecture is directly compatible with Phase B (real-time constraints)

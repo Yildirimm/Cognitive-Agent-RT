@@ -3,15 +3,19 @@ from planner.fallback_policy import FallbackPolicy
 from agent.loop import AgentLoop
 from eval.logger import JsonLogger
 from eval.metrics import summarize_jsonl
+from planner.dummy_llm import dummy_llm_client
+from planner.gemini_llm import gemini_llm_client
 
 def main():
     env = BulletEnv("configs/task.yaml", "configs/timing.yaml")
     
     policy = FallbackPolicy()
-    log_path = "logs/day3_baseline.jsonl"
+    log_path = "logs/day4_baseline.jsonl"
     logger = JsonLogger(log_path)
 
-    agent = AgentLoop(env, policy, logger)
+    llm_client = dummy_llm_client
+    # agent = AgentLoop(env, policy, logger, llm_client=llm_client)
+    agent = AgentLoop(env, policy, logger, llm_client=gemini_llm_client)
 
     num_episodes = 10
     for ep in range(num_episodes):

@@ -1,3 +1,5 @@
+use_llm: true
+
 sim:
   gui: true 
   timestep: 0.02 

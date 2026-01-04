@@ -6,3 +6,4 @@ project_timeline.txt
 /skills/__pycache__
 /eval/__pycache__
 /planner/__pycache__
+.env
