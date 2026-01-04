@@ -2,10 +2,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Any, Optional, Tuple
 import time 
+import yaml 
 import numpy as np
 import pybullet as p
 import pybullet_data
-import yaml 
 
 
 @dataclass
@@ -25,7 +25,8 @@ class BulletEnv:
     def __init__(self, task_cfg_path:str, timing_cfg_path:str):
         self.task_cfg = self._load_yaml(task_cfg_path)
         self.timing_cfg = self._load_yaml(timing_cfg_path)
-
+        self.use_llm = self.task_cfg.get("use_llm", False)
+        
         self.gui = bool(self.task_cfg["sim"].get("gui", True))
         self.dt = float(self.task_cfg["sim"].get("timestep", 0.02))
         self.gravity = float(self.task_cfg["sim"].get("gravity",-9.81))
